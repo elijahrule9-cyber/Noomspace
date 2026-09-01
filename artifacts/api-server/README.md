@@ -9,7 +9,7 @@ This service runs the Discord invite tracker and keeps the starter API health en
 - Persistent invite scores in `data/invites.sqlite`.
 - `/invites` to check a member’s successful invite score.
 - `/invitechannel` for members with Manage Channels to choose a different log channel for the current run.
-- `/invitetest` for members with Manage Channels to post a screenshot-style test card using their own Discord PFP.
+- `/invitetest` for any server member to post a screenshot-style test card using their own Discord PFP.
 - Optional historical log import using `HISTORICAL_LOG_CHANNEL_ID` and `IMPORT_HISTORICAL_LOGS=true`.
 
 ## Discord setup
