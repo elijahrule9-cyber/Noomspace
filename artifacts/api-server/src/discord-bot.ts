@@ -35,6 +35,9 @@ const RUN_BOT_TEST =
 
 const configuredLogChannels = new Map();
 const inviteCache = new Map();
+const inviteCreationNotices = new Set();
+const inviteCreationInFlight = new Set();
+let inviteSyncTimer = null;
 let botStarted = false;
 
 function failConfiguration(message) {
@@ -198,6 +201,24 @@ async function cacheGuildInvites(guild) {
       { guild: guild.name, error: error?.message },
       "Could not cache Discord invites",
     );
+  }
+}
+
+async function syncGuildInvites(guild) {
+  if (!inviteCache.has(guild.id)) {
+    await cacheGuildInvites(guild);
+    return;
+  }
+
+  const previous = inviteCache.get(guild.id) || new Map();
+  const invites = await guild.invites.fetch();
+  const newInvites = [...invites.values()].filter(
+    (invite) => !previous.has(invite.code),
+  );
+
+  await cacheGuildInvites(guild);
+  for (const invite of newInvites) {
+    await announceInviteCreation(guild, invite);
   }
 }
 
@@ -553,6 +574,20 @@ client.once("ready", async () => {
     }
   }
 
+  if (!inviteSyncTimer) {
+    inviteSyncTimer = setInterval(() => {
+      for (const guild of client.guilds.cache.values()) {
+        void syncGuildInvites(guild).catch((error) => {
+          logger.warn(
+            { guild: guild.name, error: error?.message },
+            "Invite synchronization failed; check Manage Server permission",
+          );
+        });
+      }
+    }, 30_000);
+    inviteSyncTimer.unref?.();
+  }
+
   if (RUN_BOT_TEST) {
     const testGuild = [...client.guilds.cache.values()].find((guild) =>
       Boolean(guild.channels.cache.get(LOG_CHANNEL_ID)),
@@ -581,6 +616,24 @@ client.on("guildCreate", async (guild) => {
   await cacheGuildInvites(guild);
 });
 
+async function announceInviteCreation(guild, invite) {
+  const key = guild.id + ":" + invite.code;
+  if (inviteCreationNotices.has(key) || inviteCreationInFlight.has(key)) return;
+
+  inviteCreationInFlight.add(key);
+  try {
+    const creator = invite.inviter;
+    const message = await sendLog(guild, {
+      content: creator ? "<@" + creator.id + ">" : "",
+      embeds: [creationEmbed(guild, invite)],
+      allowedMentions: creator ? { users: [creator.id] } : { parse: [] },
+    });
+    if (message) inviteCreationNotices.add(key);
+  } finally {
+    inviteCreationInFlight.delete(key);
+  }
+}
+
 client.on("inviteCreate", async (invite) => {
   const guild = invite.guild;
   if (!guild) return;
@@ -588,13 +641,7 @@ client.on("inviteCreate", async (invite) => {
   current.set(invite.code, invite.uses ?? 0);
   inviteCache.set(guild.id, current);
   saveSeededInvite.run(guild.id, invite.code, invite.uses ?? 0);
-
-  const creator = invite.inviter;
-  await sendLog(guild, {
-    content: creator ? `<@${creator.id}>` : "",
-    embeds: [creationEmbed(guild, invite)],
-    allowedMentions: creator ? { users: [creator.id] } : { parse: [] },
-  });
+  await announceInviteCreation(guild, invite);
 });
 
 client.on("guildMemberAdd", async (member) => {
@@ -631,6 +678,7 @@ client.on("error", (error) => {
 });
 
 function closeBot() {
+  if (inviteSyncTimer) clearInterval(inviteSyncTimer);
   db.close();
   client.destroy();
 }
