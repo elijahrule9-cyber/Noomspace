@@ -585,7 +585,6 @@ client.once("ready", async () => {
         });
       }
     }, 30_000);
-    inviteSyncTimer.unref?.();
   }
 
   if (RUN_BOT_TEST) {
@@ -674,7 +673,48 @@ client.on("guildMemberAdd", async (member) => {
 });
 
 client.on("error", (error) => {
-  logger.error({ error: error?.message }, "Discord client error");
+  logger.error({ error: error?.message, stack: error?.stack }, "Discord client error");
+});
+
+client.on("warn", (message) => {
+  logger.warn({ message }, "Discord client warning");
+});
+
+client.on("shardError", (error, shardId) => {
+  logger.error(
+    { shardId, error: error?.message, stack: error?.stack },
+    "Discord gateway shard error",
+  );
+});
+
+client.on("shardDisconnect", (event, shardId) => {
+  logger.warn(
+    { shardId, code: event?.code, reason: event?.reason },
+    "Discord gateway disconnected; discord.js will attempt to reconnect",
+  );
+});
+
+client.on("shardReconnecting", (shardId) => {
+  logger.info({ shardId }, "Discord gateway reconnecting");
+});
+
+client.on("shardReady", (shardId) => {
+  logger.info({ shardId }, "Discord gateway shard ready");
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.error(
+    { error: reason?.message || String(reason), stack: reason?.stack },
+    "Unhandled promise rejection",
+  );
+});
+
+process.on("uncaughtException", (error) => {
+  logger.fatal(
+    { error: error?.message, stack: error?.stack },
+    "Uncaught exception; exiting so the deployment can restart the process",
+  );
+  process.exit(1);
 });
 
 function closeBot() {
