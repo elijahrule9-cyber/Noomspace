@@ -453,14 +453,6 @@ client.on("interactionCreate", async (interaction) => {
 
   try {
     if (interaction.commandName === "invitetest") {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) {
-      await interaction.reply({
-        content: "You need **Manage Channels** to post a test card.",
-        ephemeral: true,
-      });
-      return;
-    }
-
       const message = await sendLog(interaction.guild, {
         content: `<@${interaction.user.id}>`,
         embeds: [testJoinEmbed(interaction.guild, interaction.user)],
