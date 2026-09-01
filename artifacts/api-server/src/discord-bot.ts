@@ -134,14 +134,16 @@ const saveGuildLogChannel = db.prepare(`
   ON CONFLICT(guild_id) DO UPDATE SET channel_id = excluded.channel_id
 `);
 
+const clientIntents = [
+  GatewayIntentBits.Guilds,
+  GatewayIntentBits.GuildMembers,
+  GatewayIntentBits.GuildInvites,
+  GatewayIntentBits.GuildMessages,
+  ...(IMPORT_HISTORICAL_LOGS ? [GatewayIntentBits.MessageContent] : []),
+];
+
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildInvites,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
+  intents: clientIntents,
   partials: [Partials.GuildMember],
 });
 
